@@ -5,22 +5,30 @@ import (
 	"encoding/base64"
 	"fmt"
 	"image"
+	"image/color"
 	"image/png"
 	"math"
 	"math/rand"
 	"os"
 	"sort"
 	"time"
+
+	"github.com/llgcode/draw2d/draw2dimg"
 )
 
+const escape = "\x1b"
+
 // MutationRate is the rate of mutation
-var MutationRate = 0.0004
+var MutationRate = 0.021
 
 // PopSize is the size of the population
-var PopSize = 250
+var PopSize = 100
 
 // PoolSize is the max size of the pool
-var PoolSize = 30
+var PoolSize = 20
+
+// NumTriangles is the number of triangles to draw in each picture
+var NumTriangles = 150
 
 // FitnessLimit is the fitness of the evolved image we are satisfied with
 var FitnessLimit int64 = 7500
@@ -30,6 +38,7 @@ func main() {
 	rand.Seed(time.Now().UTC().UnixNano())
 	target := load("./ml.png")
 	printImage(target.SubImage(target.Rect))
+
 	population := createPopulation(target)
 
 	found := false
@@ -42,10 +51,10 @@ func main() {
 		} else {
 			pool := createPool(population, target)
 			population = naturalSelection(pool, population, target)
-			if generation%100 == 0 {
-				sofar := time.Since(start)
+			sofar := time.Since(start)
+			if generation%10 == 0 {
+				save("./evolved2.png", bestDNA.Gene)
 				fmt.Printf("\nTime taken so far: %s | generation: %d | fitness: %d | pool size: %d", sofar, generation, bestDNA.Fitness, len(pool))
-				save("./evolved.png", bestDNA.Gene)
 				fmt.Println()
 				printImage(bestDNA.Gene.SubImage(bestDNA.Gene.Rect))
 			}
@@ -56,19 +65,6 @@ func main() {
 	fmt.Printf("\nTotal time taken: %s\n", elapsed)
 }
 
-// create a random image
-func createRandomImageFrom(img *image.RGBA) (created *image.RGBA) {
-	pix := make([]uint8, len(img.Pix))
-	rand.Read(pix)
-	created = &image.RGBA{
-		Pix:    pix,
-		Stride: img.Stride,
-		Rect:   img.Rect,
-	}
-	return
-}
-
-// save the image
 func save(filePath string, rgba *image.RGBA) {
 	imgFile, err := os.Create(filePath)
 	defer imgFile.Close()
@@ -79,8 +75,7 @@ func save(filePath string, rgba *image.RGBA) {
 	png.Encode(imgFile, rgba.SubImage(rgba.Rect))
 }
 
-// load the image
-func load(filePath string) *image.RGBA {
+func getImage(filePath string) image.Image {
 	imgFile, err := os.Open(filePath)
 	defer imgFile.Close()
 	if err != nil {
@@ -91,10 +86,15 @@ func load(filePath string) *image.RGBA {
 	if err != nil {
 		fmt.Println("Cannot decode file:", err)
 	}
+
+	return img
+}
+
+func load(filePath string) *image.RGBA {
+	img := getImage(filePath)
 	return img.(*image.RGBA)
 }
 
-// difference between 2 images
 func diff(a, b *image.RGBA) (d int64) {
 	d = 0
 	for i := 0; i < len(a.Pix); i++ {
@@ -104,7 +104,6 @@ func diff(a, b *image.RGBA) (d int64) {
 	return int64(math.Sqrt(float64(d)))
 }
 
-// square the difference
 func squareDifference(x, y uint8) uint64 {
 	d := uint64(x) - uint64(y)
 	return d * d
@@ -119,9 +118,13 @@ func createPool(population []DNA, target *image.RGBA) (pool []DNA) {
 		return population[i].Fitness < population[j].Fitness
 	})
 	top := population[0 : PoolSize+1]
+	if top[len(top)-1].Fitness-top[0].Fitness == 0 {
+		pool = population
+		return
+	}
 	// create a pool for next generation
 	for i := 0; i < len(top)-1; i++ {
-		num := (top[PoolSize].Fitness - top[i].Fitness) * 10
+		num := (top[PoolSize].Fitness - top[i].Fitness)
 		for n := int64(0); n < num; n++ {
 			pool = append(pool, top[i])
 		}
@@ -134,6 +137,7 @@ func naturalSelection(pool []DNA, population []DNA, target *image.RGBA) []DNA {
 	next := make([]DNA, len(population))
 
 	for i := 0; i < len(population); i++ {
+		// fmt.Println("pool:", len(pool))
 		r1, r2 := rand.Intn(len(pool)), rand.Intn(len(pool))
 		a := pool[r1]
 		b := pool[r2]
@@ -169,19 +173,54 @@ func getBest(population []DNA) DNA {
 	return population[index]
 }
 
+// Point represents a position in the image
+type Point struct {
+	X int
+	Y int
+}
+
+// Triangle represents a drawn triangle
+type Triangle struct {
+	P1    Point
+	P2    Point
+	P3    Point
+	Color color.Color
+}
+
 // DNA represents the genotype of the GA
 type DNA struct {
-	Gene    *image.RGBA
-	Fitness int64
+	Gene      *image.RGBA
+	Triangles []Triangle
+	Fitness   int64
 }
 
 // generates a DNA string
 func createDNA(target *image.RGBA) (dna DNA) {
+	// randomly make triangles
+	triangles := make([]Triangle, NumTriangles)
+	for i := 0; i < NumTriangles; i++ {
+		triangles[i] = createTriangle(target.Rect.Dx(), target.Rect.Dy())
+	}
+
 	dna = DNA{
-		Gene:    createRandomImageFrom(target),
-		Fitness: 0,
+		Gene:      draw(target.Rect.Dx(), target.Rect.Dy(), triangles),
+		Triangles: triangles,
+		Fitness:   0,
 	}
 	dna.calcFitness(target)
+	return
+}
+
+func createTriangle(w int, h int) (t Triangle) {
+	p1 := Point{X: rand.Intn(w), Y: rand.Intn(h)}
+	p2 := Point{X: p1.X + (rand.Intn(30) - 15), Y: p1.Y + (rand.Intn(30) - 15)}
+	p3 := Point{X: p1.X + (rand.Intn(30) - 15), Y: p1.Y + (rand.Intn(30) - 15)}
+	t = Triangle{
+		P1:    p1,
+		P2:    p2,
+		P3:    p3,
+		Color: color.RGBA{uint8(rand.Intn(255)), uint8(rand.Intn(255)), uint8(rand.Intn(255)), uint8(rand.Intn(255))},
+	}
 	return
 }
 
@@ -197,34 +236,50 @@ func (d *DNA) calcFitness(target *image.RGBA) {
 
 // crosses over 2 DNA strings
 func crossover(d1 DNA, d2 DNA) DNA {
-	pix := make([]uint8, len(d1.Gene.Pix))
+
 	child := DNA{
-		Gene: &image.RGBA{
-			Pix:    pix,
-			Stride: d1.Gene.Stride,
-			Rect:   d1.Gene.Rect,
-		},
-		Fitness: 0,
+		Triangles: make([]Triangle, len(d1.Triangles)),
+		Fitness:   0,
 	}
-	mid := rand.Intn(len(d1.Gene.Pix))
-	for i := 0; i < len(d1.Gene.Pix); i++ {
+
+	mid := rand.Intn(len(d1.Triangles))
+	for i := 0; i < len(d1.Triangles); i++ {
 		if i > mid {
-			child.Gene.Pix[i] = d1.Gene.Pix[i]
+			child.Triangles[i] = d1.Triangles[i]
 		} else {
-			child.Gene.Pix[i] = d2.Gene.Pix[i]
+			child.Triangles[i] = d2.Triangles[i]
 		}
 
 	}
+	child.Gene = draw(d1.Gene.Rect.Dx(), d1.Gene.Rect.Dy(), child.Triangles)
 	return child
 }
 
 // mutate the DNA string
 func (d *DNA) mutate() {
-	for i := 0; i < len(d.Gene.Pix); i++ {
+	for i := 0; i < len(d.Triangles); i++ {
 		if rand.Float64() < MutationRate {
-			d.Gene.Pix[i] = uint8(rand.Intn(255))
+			d.Triangles[i] = createTriangle(d.Gene.Rect.Dx(), d.Gene.Rect.Dy())
 		}
 	}
+	d.Gene = draw(d.Gene.Rect.Dx(), d.Gene.Rect.Dy(), d.Triangles)
+}
+
+func draw(w int, h int, triangles []Triangle) *image.RGBA {
+	dest := image.NewRGBA(image.Rect(0, 0, w, h))
+	gc := draw2dimg.NewGraphicContext(dest)
+
+	for _, triangle := range triangles {
+		gc.SetFillColor(triangle.Color)
+		gc.SetStrokeColor(triangle.Color)
+		gc.MoveTo(float64(triangle.P1.X), float64(triangle.P1.Y))
+		gc.LineTo(float64(triangle.P2.X), float64(triangle.P2.Y))
+		gc.LineTo(float64(triangle.P3.X), float64(triangle.P3.Y))
+		gc.Close()
+		gc.Fill()
+	}
+
+	return dest
 }
 
 // this only works for iTerm!
@@ -233,5 +288,5 @@ func printImage(img image.Image) {
 	var buf bytes.Buffer
 	png.Encode(&buf, img)
 	imgBase64Str := base64.StdEncoding.EncodeToString(buf.Bytes())
-	fmt.Printf("\x1b]1337;File=inline=1:%s\a\n", imgBase64Str)
+	fmt.Printf("%s]1337;File=inline=1:%s\a\n", escape, imgBase64Str)
 }
