@@ -36,18 +36,18 @@ func main() {
 	generation := 0
 	for !found {
 		generation++
-		bestDNA := getBest(population)
-		if bestDNA.Fitness < FitnessLimit {
+		bestOrganism := getBest(population)
+		if bestOrganism.Fitness < FitnessLimit {
 			found = true
 		} else {
 			pool := createPool(population, target)
 			population = naturalSelection(pool, population, target)
 			if generation%100 == 0 {
 				sofar := time.Since(start)
-				fmt.Printf("\nTime taken so far: %s | generation: %d | fitness: %d | pool size: %d", sofar, generation, bestDNA.Fitness, len(pool))
-				save("./evolved.png", bestDNA.Gene)
+				fmt.Printf("\nTime taken so far: %s | generation: %d | fitness: %d | pool size: %d", sofar, generation, bestOrganism.Fitness, len(pool))
+				save("./evolved.png", bestOrganism.DNA)
 				fmt.Println()
-				printImage(bestDNA.Gene.SubImage(bestDNA.Gene.Rect))
+				printImage(bestOrganism.DNA.SubImage(bestOrganism.DNA.Rect))
 			}
 		}
 
@@ -111,8 +111,8 @@ func squareDifference(x, y uint8) uint64 {
 }
 
 // create the reproduction pool that creates the next generation
-func createPool(population []DNA, target *image.RGBA) (pool []DNA) {
-	pool = make([]DNA, 0)
+func createPool(population []Organism, target *image.RGBA) (pool []Organism) {
+	pool = make([]Organism, 0)
 
 	// get top 10 best fitting DNAs
 	sort.SliceStable(population, func(i, j int) bool {
@@ -130,8 +130,8 @@ func createPool(population []DNA, target *image.RGBA) (pool []DNA) {
 }
 
 // perform natural selection to create the next generation
-func naturalSelection(pool []DNA, population []DNA, target *image.RGBA) []DNA {
-	next := make([]DNA, len(population))
+func naturalSelection(pool []Organism, population []Organism, target *image.RGBA) []Organism {
+	next := make([]Organism, len(population))
 
 	for i := 0; i < len(population); i++ {
 		r1, r2 := rand.Intn(len(pool)), rand.Intn(len(pool))
@@ -148,16 +148,16 @@ func naturalSelection(pool []DNA, population []DNA, target *image.RGBA) []DNA {
 }
 
 // creates the initial population
-func createPopulation(target *image.RGBA) (population []DNA) {
-	population = make([]DNA, PopSize)
+func createPopulation(target *image.RGBA) (population []Organism) {
+	population = make([]Organism, PopSize)
 	for i := 0; i < PopSize; i++ {
-		population[i] = createDNA(target)
+		population[i] = createOrganism(target)
 	}
 	return
 }
 
 // Get the best gene
-func getBest(population []DNA) DNA {
+func getBest(population []Organism) Organism {
 	best := int64(0)
 	index := 0
 	for i := 0; i < len(population); i++ {
@@ -169,60 +169,60 @@ func getBest(population []DNA) DNA {
 	return population[index]
 }
 
-// DNA represents the genotype of the GA
-type DNA struct {
-	Gene    *image.RGBA
+// Organism represents the genotype of the GA
+type Organism struct {
+	DNA     *image.RGBA
 	Fitness int64
 }
 
-// generates a DNA string
-func createDNA(target *image.RGBA) (dna DNA) {
-	dna = DNA{
-		Gene:    createRandomImageFrom(target),
+// generates a Organism string
+func createOrganism(target *image.RGBA) (organism Organism) {
+	organism = Organism{
+		DNA:     createRandomImageFrom(target),
 		Fitness: 0,
 	}
-	dna.calcFitness(target)
+	organism.calcFitness(target)
 	return
 }
 
-// calculates the fitness of the DNA to the target string
-func (d *DNA) calcFitness(target *image.RGBA) {
-	difference := diff(d.Gene, target)
+// calculates the fitness of the Organism to the target string
+func (o *Organism) calcFitness(target *image.RGBA) {
+	difference := diff(o.DNA, target)
 	if difference == 0 {
-		d.Fitness = 1
+		o.Fitness = 1
 	}
-	d.Fitness = difference
+	o.Fitness = difference
 
 }
 
-// crosses over 2 DNA strings
-func crossover(d1 DNA, d2 DNA) DNA {
-	pix := make([]uint8, len(d1.Gene.Pix))
-	child := DNA{
-		Gene: &image.RGBA{
+// crosses over 2 Organism strings
+func crossover(d1 Organism, d2 Organism) Organism {
+	pix := make([]uint8, len(d1.DNA.Pix))
+	child := Organism{
+		DNA: &image.RGBA{
 			Pix:    pix,
-			Stride: d1.Gene.Stride,
-			Rect:   d1.Gene.Rect,
+			Stride: d1.DNA.Stride,
+			Rect:   d1.DNA.Rect,
 		},
 		Fitness: 0,
 	}
-	mid := rand.Intn(len(d1.Gene.Pix))
-	for i := 0; i < len(d1.Gene.Pix); i++ {
+	mid := rand.Intn(len(d1.DNA.Pix))
+	for i := 0; i < len(d1.DNA.Pix); i++ {
 		if i > mid {
-			child.Gene.Pix[i] = d1.Gene.Pix[i]
+			child.DNA.Pix[i] = d1.DNA.Pix[i]
 		} else {
-			child.Gene.Pix[i] = d2.Gene.Pix[i]
+			child.DNA.Pix[i] = d2.DNA.Pix[i]
 		}
 
 	}
 	return child
 }
 
-// mutate the DNA string
-func (d *DNA) mutate() {
-	for i := 0; i < len(d.Gene.Pix); i++ {
+// mutate the Organism string
+func (o *Organism) mutate() {
+	for i := 0; i < len(o.DNA.Pix); i++ {
 		if rand.Float64() < MutationRate {
-			d.Gene.Pix[i] = uint8(rand.Intn(255))
+			o.DNA.Pix[i] = uint8(rand.Intn(255))
 		}
 	}
 }

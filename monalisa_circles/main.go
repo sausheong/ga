@@ -45,18 +45,18 @@ func main() {
 	generation := 0
 	for !found {
 		generation++
-		bestDNA := getBest(population)
-		if bestDNA.Fitness < 5000 {
+		bestOrganism := getBest(population)
+		if bestOrganism.Fitness < 5000 {
 			found = true
 		} else {
 			pool := createPool(population, target)
 			population = naturalSelection(pool, population, target)
 			sofar := time.Since(start)
 			if generation%10 == 0 {
-				save("./evolved2.png", bestDNA.Gene)
-				fmt.Printf("\nTime taken so far: %s | generation: %d | fitness: %d | pool size: %d", sofar, generation, bestDNA.Fitness, len(pool))
+				save("./evolved.png", bestOrganism.DNA)
+				fmt.Printf("\nTime taken so far: %s | generation: %d | fitness: %d | pool size: %d", sofar, generation, bestOrganism.Fitness, len(pool))
 				fmt.Println()
-				printImage(bestDNA.Gene.SubImage(bestDNA.Gene.Rect))
+				printImage(bestOrganism.DNA.SubImage(bestOrganism.DNA.Rect))
 			}
 		}
 
@@ -110,10 +110,10 @@ func squareDifference(x, y uint8) uint64 {
 }
 
 // create the reproduction pool that creates the next generation
-func createPool(population []DNA, target *image.RGBA) (pool []DNA) {
-	pool = make([]DNA, 0)
+func createPool(population []Organism, target *image.RGBA) (pool []Organism) {
+	pool = make([]Organism, 0)
 
-	// get top 10 best fitting DNAs
+	// get top 10 best fitting organisms
 	sort.SliceStable(population, func(i, j int) bool {
 		return population[i].Fitness < population[j].Fitness
 	})
@@ -133,8 +133,8 @@ func createPool(population []DNA, target *image.RGBA) (pool []DNA) {
 }
 
 // perform natural selection to create the next generation
-func naturalSelection(pool []DNA, population []DNA, target *image.RGBA) []DNA {
-	next := make([]DNA, len(population))
+func naturalSelection(pool []Organism, population []Organism, target *image.RGBA) []Organism {
+	next := make([]Organism, len(population))
 
 	for i := 0; i < len(population); i++ {
 		// fmt.Println("pool:", len(pool))
@@ -152,16 +152,16 @@ func naturalSelection(pool []DNA, population []DNA, target *image.RGBA) []DNA {
 }
 
 // creates the initial population
-func createPopulation(target *image.RGBA) (population []DNA) {
-	population = make([]DNA, PopSize)
+func createPopulation(target *image.RGBA) (population []Organism) {
+	population = make([]Organism, PopSize)
 	for i := 0; i < PopSize; i++ {
-		population[i] = createDNA(target)
+		population[i] = createOrganism(target)
 	}
 	return
 }
 
-// Get the best gene
-func getBest(population []DNA) DNA {
+// Get the best organism
+func getBest(population []Organism) Organism {
 	best := int64(0)
 	index := 0
 	for i := 0; i < len(population); i++ {
@@ -187,27 +187,27 @@ type Circle struct {
 	Color color.Color
 }
 
-// DNA represents the genotype of the GA
-type DNA struct {
-	Gene    *image.RGBA
+// Organism represents an individual in the population
+type Organism struct {
+	DNA     *image.RGBA
 	Circles []Circle
 	Fitness int64
 }
 
-// generates a DNA string
-func createDNA(target *image.RGBA) (dna DNA) {
+// create an organism
+func createOrganism(target *image.RGBA) (organism Organism) {
 	// randomly make triangles
 	circles := make([]Circle, NumCircles)
 	for i := 0; i < NumCircles; i++ {
 		circles[i] = createCircle(target.Rect.Dx(), target.Rect.Dy())
 	}
 
-	dna = DNA{
-		Gene:    draw(target.Rect.Dx(), target.Rect.Dy(), circles),
+	organism = Organism{
+		DNA:     draw(target.Rect.Dx(), target.Rect.Dy(), circles),
 		Circles: circles,
 		Fitness: 0,
 	}
-	dna.calcFitness(target)
+	organism.calcFitness(target)
 	return
 }
 
@@ -221,9 +221,9 @@ func createCircle(w int, h int) (c Circle) {
 	return
 }
 
-// calculates the fitness of the DNA to the target string
-func (d *DNA) calcFitness(target *image.RGBA) {
-	difference := diff(d.Gene, target)
+// calculates the fitness of the Organism to the target string
+func (d *Organism) calcFitness(target *image.RGBA) {
+	difference := diff(d.DNA, target)
 	if difference == 0 {
 		d.Fitness = 1
 	}
@@ -231,10 +231,10 @@ func (d *DNA) calcFitness(target *image.RGBA) {
 
 }
 
-// crosses over 2 DNA strings
-func crossover(d1 DNA, d2 DNA) DNA {
+// crosses over 2 srganisms
+func crossover(d1 Organism, d2 Organism) Organism {
 
-	child := DNA{
+	child := Organism{
 		Circles: make([]Circle, len(d1.Circles)),
 		Fitness: 0,
 	}
@@ -248,18 +248,18 @@ func crossover(d1 DNA, d2 DNA) DNA {
 		}
 
 	}
-	child.Gene = draw(d1.Gene.Rect.Dx(), d1.Gene.Rect.Dy(), child.Circles)
+	child.DNA = draw(d1.DNA.Rect.Dx(), d1.DNA.Rect.Dy(), child.Circles)
 	return child
 }
 
-// mutate the DNA string
-func (d *DNA) mutate() {
+// mutate the organism
+func (d *Organism) mutate() {
 	for i := 0; i < len(d.Circles); i++ {
 		if rand.Float64() < MutationRate {
-			d.Circles[i] = createCircle(d.Gene.Rect.Dx(), d.Gene.Rect.Dy())
+			d.Circles[i] = createCircle(d.DNA.Rect.Dx(), d.DNA.Rect.Dy())
 		}
 	}
-	d.Gene = draw(d.Gene.Rect.Dx(), d.Gene.Rect.Dy(), d.Circles)
+	d.DNA = draw(d.DNA.Rect.Dx(), d.DNA.Rect.Dy(), d.Circles)
 }
 
 func draw(w int, h int, circles []Circle) *image.RGBA {

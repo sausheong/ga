@@ -17,20 +17,20 @@ func main() {
 	start := time.Now()
 	rand.Seed(time.Now().UTC().UnixNano())
 
-	target := []byte("To be or not to be, that is the question.")
+	target := []byte("To be or not to be")
 	population := createPopulation(target)
 
 	found := false
 	generation := 0
 	for !found {
 		generation++
-		bestDNA := getBest(population)
-		fmt.Printf("\r generation: %d | %s | fitness: %2f", generation, string(bestDNA.Gene), bestDNA.Fitness)
+		bestOrganism := getBest(population)
+		fmt.Printf("\r generation: %d | %s | fitness: %2f", generation, string(bestOrganism.DNA), bestOrganism.Fitness)
 
-		if bytes.Compare(bestDNA.Gene, target) == 0 {
+		if bytes.Compare(bestOrganism.DNA, target) == 0 {
 			found = true
 		} else {
-			maxFitness := bestDNA.Fitness
+			maxFitness := bestOrganism.Fitness
 			pool := createPool(population, target, maxFitness)
 			population = naturalSelection(pool, population, target)
 		}
@@ -40,9 +40,50 @@ func main() {
 	fmt.Printf("\nTime taken: %s\n", elapsed)
 }
 
-// create the reproduction pool that creates the next generation
-func createPool(population []DNA, target []byte, maxFitness float64) (pool []DNA) {
-	pool = make([]DNA, 0)
+// Organism for this genetic algorithm
+type Organism struct {
+	DNA     []byte
+	Fitness float64
+}
+
+// creates a Organism
+func createOrganism(target []byte) (organism Organism) {
+	ba := make([]byte, len(target))
+	for i := 0; i < len(target); i++ {
+		ba[i] = byte(rand.Intn(95) + 32)
+	}
+	organism = Organism{
+		DNA:     ba,
+		Fitness: 0,
+	}
+	organism.calcFitness(target)
+	return
+}
+
+// creates the initial population
+func createPopulation(target []byte) (population []Organism) {
+	population = make([]Organism, PopSize)
+	for i := 0; i < PopSize; i++ {
+		population[i] = createOrganism(target)
+	}
+	return
+}
+
+// calculates the fitness of the Organism
+func (d *Organism) calcFitness(target []byte) {
+	score := 0
+	for i := 0; i < len(d.DNA); i++ {
+		if d.DNA[i] == target[i] {
+			score++
+		}
+	}
+	d.Fitness = float64(score) / float64(len(d.DNA))
+	return
+}
+
+// create the breeding pool that creates the next generation
+func createPool(population []Organism, target []byte, maxFitness float64) (pool []Organism) {
+	pool = make([]Organism, 0)
 	// create a pool for next generation
 	for i := 0; i < len(population); i++ {
 		population[i].calcFitness(target)
@@ -55,8 +96,8 @@ func createPool(population []DNA, target []byte, maxFitness float64) (pool []DNA
 }
 
 // perform natural selection to create the next generation
-func naturalSelection(pool []DNA, population []DNA, target []byte) []DNA {
-	next := make([]DNA, len(population))
+func naturalSelection(pool []Organism, population []Organism, target []byte) []Organism {
+	next := make([]Organism, len(population))
 
 	for i := 0; i < len(population); i++ {
 		r1, r2 := rand.Intn(len(pool)), rand.Intn(len(pool))
@@ -72,17 +113,35 @@ func naturalSelection(pool []DNA, population []DNA, target []byte) []DNA {
 	return next
 }
 
-// creates the initial population
-func createPopulation(target []byte) (population []DNA) {
-	population = make([]DNA, PopSize)
-	for i := 0; i < PopSize; i++ {
-		population[i] = createDNA(target)
+// crosses over 2 Organisms
+func crossover(d1 Organism, d2 Organism) Organism {
+	child := Organism{
+		DNA:     make([]byte, len(d1.DNA)),
+		Fitness: 0,
 	}
-	return
+	mid := rand.Intn(len(d1.DNA))
+	for i := 0; i < len(d1.DNA); i++ {
+		if i > mid {
+			child.DNA[i] = d1.DNA[i]
+		} else {
+			child.DNA[i] = d2.DNA[i]
+		}
+
+	}
+	return child
 }
 
-// Get the best gene
-func getBest(population []DNA) DNA {
+// mutate the Organism
+func (d *Organism) mutate() {
+	for i := 0; i < len(d.DNA); i++ {
+		if rand.Float64() < MutationRate {
+			d.DNA[i] = byte(rand.Intn(95) + 32)
+		}
+	}
+}
+
+// Get the best organism
+func getBest(population []Organism) Organism {
 	best := 0.0
 	index := 0
 	for i := 0; i < len(population); i++ {
@@ -92,63 +151,4 @@ func getBest(population []DNA) DNA {
 		}
 	}
 	return population[index]
-}
-
-// DNA represents the genotype of the GA
-type DNA struct {
-	Gene    []byte
-	Fitness float64
-}
-
-// generates a DNA string
-func createDNA(target []byte) (dna DNA) {
-	ba := make([]byte, len(target))
-	for i := 0; i < len(target); i++ {
-		ba[i] = byte(rand.Intn(95) + 32)
-	}
-	dna = DNA{
-		Gene:    ba,
-		Fitness: 0,
-	}
-	dna.calcFitness(target)
-	return
-}
-
-// calculates the fitness of the DNA to the target string
-func (d *DNA) calcFitness(target []byte) {
-	score := 0
-	for i := 0; i < len(d.Gene); i++ {
-		if d.Gene[i] == target[i] {
-			score++
-		}
-	}
-	d.Fitness = float64(score) / float64(len(d.Gene))
-	return
-}
-
-// crosses over 2 DNA strings
-func crossover(d1 DNA, d2 DNA) DNA {
-	child := DNA{
-		Gene:    make([]byte, len(d1.Gene)),
-		Fitness: 0,
-	}
-	mid := rand.Intn(len(d1.Gene))
-	for i := 0; i < len(d1.Gene); i++ {
-		if i > mid {
-			child.Gene[i] = d1.Gene[i]
-		} else {
-			child.Gene[i] = d2.Gene[i]
-		}
-
-	}
-	return child
-}
-
-// mutate the DNA string
-func (d *DNA) mutate() {
-	for i := 0; i < len(d.Gene); i++ {
-		if rand.Float64() < MutationRate {
-			d.Gene[i] = byte(rand.Intn(95) + 32)
-		}
-	}
 }
