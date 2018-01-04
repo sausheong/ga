@@ -58,6 +58,7 @@ func main() {
 
 // create a random image
 func createRandomImageFrom(img *image.RGBA) (created *image.RGBA) {
+	fmt.Println("len:", len(img.Pix))
 	pix := make([]uint8, len(img.Pix))
 	rand.Read(pix)
 	created = &image.RGBA{

@@ -6,7 +6,7 @@ From that point of view it's easy to see why many of these algorithms are optimi
 
 ## Genetic algorithms
 
-Genetic algorithms is a metaheuristic that is based on the process of [natural selection](https://en.wikipedia.org/wiki/Natural_selection). 
+Genetic algorithms are metaheuristics that are based on the process of [natural selection](https://en.wikipedia.org/wiki/Natural_selection). 
 
 Natural selection, as a refresher, is a key mechanism in evolution. It is a natural process that causes populations (of organisms) to adapt to their environment over time. These populations have variations in traits. Individual organisms with more suitable traits have higher chances of survival in the environment. The next generations reproduced from these surviving organisms will inherit their traits, resulting eventualy in a population with these more suitable traits. 
 
@@ -16,7 +16,7 @@ A popularly used illustration is the [variation in color in the peppered moths i
 
 ![Dark and light colored peppered moths](/imgs/moths.jpg)
 
-So that's natural selection. How does genetic algorithms come into the picture? Genetic algorithms are heuristics that uses the same mechanisms as natural selection --  genes, population, variation, fitness, selection, reproduction, inheritance and mutation.
+So that's natural selection. How does genetic algorithms come into the picture? Genetic algorithms are heuristics that uses the same mechanisms as natural selection --  DNA, population, variation, fitness, selection, reproduction, inheritance and mutation.
 
 * DNA -- define organisms that have one or more DNA
 * Population -- start with an initial population of organisms with different genes (values) for their DNA
@@ -245,5 +245,52 @@ type Organism struct {
 	Fitness int64
 }
 ```
+
+### Start with an initial population of organisms
+
+As before let's look at creating an organism first.
+
+```go
+func createOrganism(target *image.RGBA) (organism Organism) {
+	organism = Organism{
+		DNA:     createRandomImageFrom(target),
+		Fitness: 0,
+	}
+	organism.calcFitness(target)
+	return
+}
+```
+
+Instead of creating a random byte array, we call another function to create a random image.
+
+```go
+func createRandomImageFrom(img *image.RGBA) (created *image.RGBA) {
+	pix := make([]uint8, len(img.Pix))
+	rand.Read(pix)
+	created = &image.RGBA{
+		Pix:    pix,
+		Stride: img.Stride,
+		Rect:   img.Rect,
+	}
+	return
+}
+```
+
+An `image.RGBA` struct consists of a byte array `Pix` (`byte` and `uint8` are the same thing), a `Stride` and a `Rect`. What's important for us is the `Pix`, we use the same `Stride` and `Rect` as the target image (which is an image of Mona Lisa). Fortunately for us, the `math/rand` standard library has a method called `Read` that fills up a byte array nicely with random bytes. 
+
+You might be curious, so how big a byte array are we talking about here? `Pix` is nothing more than a byte array with 4 bytes representing a pixel (R, G, B and A each represented by a byte).  With an image that is 800 x 600, we're talking about 1.92 million bytes in each array! To keep the program relatively speedy, we'll use a smaller image that is of size 67 x 100, which gives an array of 26,800 bytes. This, if you don't realise it by now, is far from the 18 bytes we were playing around with in the last program.
+
+Also, you might realise that because each pixel is now randomly colored, we'd end up with a colored static snow pattern.
+
+![randomly generated image](imgs/rd_100.png)
+
+Let's move on.
+
+### Find the fitness of the organisms
+
+
+
+
+
 
 
