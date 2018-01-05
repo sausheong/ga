@@ -58,7 +58,6 @@ func main() {
 
 // create a random image
 func createRandomImageFrom(img *image.RGBA) (created *image.RGBA) {
-	fmt.Println("len:", len(img.Pix))
 	pix := make([]uint8, len(img.Pix))
 	rand.Read(pix)
 	created = &image.RGBA{
@@ -114,15 +113,21 @@ func squareDifference(x, y uint8) uint64 {
 // create the reproduction pool that creates the next generation
 func createPool(population []Organism, target *image.RGBA) (pool []Organism) {
 	pool = make([]Organism, 0)
-
-	// get top 10 best fitting DNAs
+	// get top best fitting organisms
 	sort.SliceStable(population, func(i, j int) bool {
 		return population[i].Fitness < population[j].Fitness
 	})
 	top := population[0 : PoolSize+1]
+	// if there is no difference between the top  organisms, the population is stable
+	// and we can't get generate a proper breeding pool so we make the pool equal to the
+	// population and reproduce the next generation
+	if top[len(top)-1].Fitness-top[0].Fitness == 0 {
+		pool = population
+		return
+	}
 	// create a pool for next generation
 	for i := 0; i < len(top)-1; i++ {
-		num := (top[PoolSize].Fitness - top[i].Fitness) * 10
+		num := (top[PoolSize].Fitness - top[i].Fitness)
 		for n := int64(0); n < num; n++ {
 			pool = append(pool, top[i])
 		}

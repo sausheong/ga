@@ -170,6 +170,8 @@ func crossover(d1 Organism, d2 Organism) Organism {
 
 For crossover, I simply picked a mid-point `mid` and use the first `mid` bytes from the first organism and the rest of the bytes from the second organism. 
 
+## Randomly mutate each generation
+
 After a new child organism has been reproduced from the 2 parent organisms, we see if mutation happens to the child organism.
 
 ```go
@@ -278,19 +280,214 @@ func createRandomImageFrom(img *image.RGBA) (created *image.RGBA) {
 
 An `image.RGBA` struct consists of a byte array `Pix` (`byte` and `uint8` are the same thing), a `Stride` and a `Rect`. What's important for us is the `Pix`, we use the same `Stride` and `Rect` as the target image (which is an image of Mona Lisa). Fortunately for us, the `math/rand` standard library has a method called `Read` that fills up a byte array nicely with random bytes. 
 
-You might be curious, so how big a byte array are we talking about here? `Pix` is nothing more than a byte array with 4 bytes representing a pixel (R, G, B and A each represented by a byte).  With an image that is 800 x 600, we're talking about 1.92 million bytes in each array! To keep the program relatively speedy, we'll use a smaller image that is of size 67 x 100, which gives an array of 26,800 bytes. This, if you don't realise it by now, is far from the 18 bytes we were playing around with in the last program.
+You might be curious, so how big a byte array are we talking about here? `Pix` is nothing more than a byte array with 4 bytes representing a pixel (R, G, B and A each represented by a byte).  With an image that is 800 x 600, we're talking about 1.92 million bytes in each image! To keep the program relatively speedy, we'll use a smaller image that is of size 67 x 100, which gives an array of 26,800 bytes. This, if you don't realise it by now, is far from the 18 bytes we were playing around with in the last program.
 
 Also, you might realise that because each pixel is now randomly colored, we'd end up with a colored static snow pattern.
 
-![randomly generated image](imgs/rd_100.png)
+![randomly generated image](imgs/rd_1.png)
 
 Let's move on.
 
 ### Find the fitness of the organisms
 
+The fitness of the organism is the difference between the two images. 
+
+```go
+func (o *Organism) calcFitness(target *image.RGBA) {
+	difference := diff(o.DNA, target)
+	if difference == 0 {
+		o.Fitness = 1
+	}
+	o.Fitness = difference
+
+}
+
+func diff(a, b *image.RGBA) (d int64) {
+	d = 0
+	for i := 0; i < len(a.Pix); i++ {
+		d += int64(squareDifference(a.Pix[i], b.Pix[i]))
+	}
+
+	return int64(math.Sqrt(float64(d)))
+}
+
+func squareDifference(x, y uint8) uint64 {
+	d := uint64(x) - uint64(y)
+	return d * d
+}
+```
+
+To find the difference, we can go back to the Pythagorean theorem. If you remember, we can find the distance between 2 points if we square the difference of the `x` and `y` values, add them up and then square root the results.
+
+![Pythagorean theorem](imgs/pythagoras.png)
+
+Give 2 points `a`(x1, y1) and `b`(x2, y2), the distance `d` between `a` and `b` is:
+
+![distance between 2 points](imgs/distance.png)
+
+That's in 2 dimensional space. In 3 dimensional space, we simply do the Pythagorean theorem twice, and in 4 dimensional space, we do it 3 times. The RGBA values of a pixel is essentially a point in a 4 dimensional space, so to find the difference between 2 pixels, we square the difference between `r`, `g`, `b` and `a` values of two pixels, add them all up and then square root the results.
+
+![distance between 2 pixels](imgs/diff_eq.png)
+
+That's the difference between 2 pixels. To find the difference between all pixels, we just add up all the results together and we have the final difference. Because `Pix` is essentially one long byte array with consecutive RGBA values in it we can use a simple shortcut. We simply square the difference between each corresponding byte in the image and the target, then add them all up and square root the final number to find the difference between the 2 images.
+
+As a reference, if 2 images are exactly the same, the difference will be 0 and if the 2 images are complete opposites of each other, the difference will be 26,800. In other words, the best fit organisms should have fitness of 0 and the higher the number is, the less fit the organism is.
+
+### Select the organisms with the best fitness and give them higher chances to reproduce
+
+We're still using the breeding pool mechanism here but with a difference. First, we sort the population from best fitness to worst fitness. Then we take the top best organisms and put them into the breeding pool. We use a parameter `PoolSize` to indicate how many of the best fit organisms we want in the pool. 
+
+To figure out what to put into the breeding pool, we subtract each of the top best organisms with the least fit organism in the top. This creates a differentiated ranking between the top best organisms and according to that differential ranking we place the corresponding number of copies of the organism in the breeding pool. For example, if the difference between the best fit organism and the least fit organism in the top best is 20, we place 20 organisms in the breeding pool.
+
+If there is no difference between the top best fit organisms, this means the population is stable and we can't really create a proper breeding pool. To overcome this, if the difference is 0, we set the pool to be the whole population.
+
+```go
+func createPool(population []Organism, target *image.RGBA) (pool []Organism) {
+	pool = make([]Organism, 0)
+	// get top best fitting organisms
+	sort.SliceStable(population, func(i, j int) bool {
+		return population[i].Fitness < population[j].Fitness
+	})
+	top := population[0 : PoolSize+1]
+	// if there is no difference between the top  organisms, the population is stable
+	// and we can't get generate a proper breeding pool so we make the pool equal to the
+	// population and reproduce the next generation
+	if top[len(top)-1].Fitness-top[0].Fitness == 0 {
+		pool = population
+		return
+	}
+	// create a pool for next generation
+	for i := 0; i < len(top)-1; i++ {
+		num := (top[PoolSize].Fitness - top[i].Fitness)
+		for n := int64(0); n < num; n++ {
+			pool = append(pool, top[i])
+		}
+	}
+	return
+}
+```
+
+### Create the next generation of the population from the selected best-fit organisms 
+
+After we have the pool, we need to create the next generation. The code for natural selection here is no different from the previous program so we'll skip showing it here.
+
+### The next generation of the population must inherit the values of the genes
+
+The `crossover` function is slightly different as the child's DNA is not a byte array but an image.RGBA. The actual crossover mechanism works on `Pix`, the byte array of pixels, instead.
+
+```go
+func crossover(d1 Organism, d2 Organism) Organism {
+	pix := make([]uint8, len(d1.DNA.Pix))
+	child := Organism{
+		DNA: &image.RGBA{
+			Pix:    pix,
+			Stride: d1.DNA.Stride,
+			Rect:   d1.DNA.Rect,
+		},
+		Fitness: 0,
+	}
+	mid := rand.Intn(len(d1.DNA.Pix))
+	for i := 0; i < len(d1.DNA.Pix); i++ {
+		if i > mid {
+			child.DNA.Pix[i] = d1.DNA.Pix[i]
+		} else {
+			child.DNA.Pix[i] = d2.DNA.Pix[i]
+		}
+
+	}
+	return child
+}
+```
+
+## Randomly mutate each generation
+
+The `mutate` function is correspondingly different as well.
+
+```go
+func (o *Organism) mutate() {
+	for i := 0; i < len(o.DNA.Pix); i++ {
+		if rand.Float64() < MutationRate {
+			o.DNA.Pix[i] = uint8(rand.Intn(255))
+		}
+	}
+}
+```
+
+Now that we have everything, we put it all together in the `main` function.
+
+```go
+func main() {
+	start := time.Now()
+	rand.Seed(time.Now().UTC().UnixNano())
+	target := load("./ml.png")
+	printImage(target.SubImage(target.Rect))
+	population := createPopulation(target)
+
+	found := false
+	generation := 0
+	for !found {
+		generation++
+		bestOrganism := getBest(population)
+		if bestOrganism.Fitness < FitnessLimit {
+			found = true
+		} else {
+			pool := createPool(population, target)
+			population = naturalSelection(pool, population, target)
+			if generation%100 == 0 {
+				sofar := time.Since(start)
+				fmt.Printf("\nTime taken so far: %s | generation: %d | fitness: %d | pool size: %d", sofar, generation, bestOrganism.Fitness, len(pool))
+				save("./evolved.png", bestOrganism.DNA)
+				fmt.Println()
+				printImage(bestOrganism.DNA.SubImage(bestOrganism.DNA.Rect))
+			}
+		}
+	}
+	elapsed := time.Since(start)
+	fmt.Printf("\nTotal time taken: %s\n", elapsed)
+}
+```
+
+Now run it and see. What do you get?
+
+![Start evolving Mona Lisa](imgs/evolving1.png)
 
 
+With the parameters I've set, when I run it, I usually start with a fitness of 19,000 or so. On an average it takes me more than 20 minutes before I reach a fitness of less than 7500.
 
+![Start evolving Mona Lisa](imgs/evolving2.png)
 
+Here's a sequence of images that's been produced over time:
 
+![generation 1](imgs/rd_1.png)
+![generation 100](imgs/rd_100.png)
+![generation 1000](imgs/rd_1000.png)
+![generation 2000](imgs/rd_2000.png)
+![generation 4000](imgs/rd_4000.png)
+![generation 7400](imgs/rd_7400.png)
 
+## Evolving Mona Lisa with circles and triangles
+
+I had a bit of fun with evolving Mona Lisa by drawing circles and also drawing triangles on an image. The results weren't as quick and the images were not as obvious but it shows a glimpse of what actually happens. You can check out the rest of the code from the repository and tweak the parameters yourselves to see if you can get better pictures but here are some images I got.
+
+### Mona Lisa triangles
+
+![generation 10](imgs/tri_10.png)
+![generation 100](imgs/tri_100.png)
+![generation 300](imgs/tri_300.png)
+![generation 700](imgs/tri_700.png)
+![generation 2030](imgs/tri_2030.png)
+![generation 3160](imgs/tri_3160.png)
+![generation 11930](imgs/tri_11930.png)
+
+### Mona Lisa circles
+
+![generation 10](imgs/circles_10.png)
+![generation 100](imgs/circles_100.png)
+![generation 300](imgs/circles_300.png)
+![generation 700](imgs/circles_700.png)
+![generation 2560](imgs/circles_2560.png)
+![generation 5240](imgs/circles_5240.png)
+![generation 6600](imgs/circles_6600.png)
+![generation 29280](imgs/circles_29280.png)
+
+Have fun!
