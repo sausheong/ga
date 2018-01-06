@@ -498,7 +498,7 @@ Have fun!
 
 You might have noticed in my screenshots that I actually displayed images on the terminal. I could have created a web application to show this but I wanted to keep things much simpler so I thought to display the images directly on the terminal. While the terminal console is not where you'd normally expect images to be displayed, there are actually several ways of doing it.
 
-I chose one of the simplest. I happened to use the excellent [iTerm2](https://www.iterm2.com/), which is an excellent replacement for the default Terminal application in MacOS, and there is an [interesting hack in iTerm2 that allows images to be displayed](https://www.iterm2.com/documentation-images.html). 
+I chose one of the simplest. I happened to use the excellent [iTerm2](https://www.iterm2.com/), which is a replacement for the default Terminal application in MacOS, and there is an [interesting hack in iTerm2 that allows images to be displayed](https://www.iterm2.com/documentation-images.html). 
 
 The trick is this -- if you can encode your image in Base64, you can use a special command to print out images to the terminal. Here's the Go code to do this, but you can also do this in any other language. There are several scripts in the documentation above that shows how this can be done using simple shell scripting.
 
@@ -510,6 +510,8 @@ func printImage(img image.Image) {
 	fmt.Printf("\x1b]1337;File=inline=1:%s\a\n", imgBase64Str)
 }
 ```
+
+What this means unfortunately is that if you run this code in anything else other iTerm2, you won't be able to see the evolution of the images. However you can always tweak the output such that every few generations you capture the output.
 
 ## References
 
