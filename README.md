@@ -1,8 +1,8 @@
 # A Gentle Introduction to Genetic Algorithms
 
-It may not seem obvious at first glance, but computer science algorithms are often inspired by nature and biological processes. Some of these algorithms include neural networks, particle swarm optimization, artificial bee colony, ant colony optimization, evolutionary algorithms and many more. In fact some even have the view that biological processes are simply algorithms that nature have come up with to solve problems.
+It may not seem obvious at first glance, but computer science algorithms are often inspired by nature and biological processes. Some of these algorithms include neural networks, particle swarm optimization, artificial bee colony, ant colony optimization, evolutionary algorithms and many more. In fact, you can consider biological processes to be simply algorithms that nature have come up with to solve problems. From that point of view it's easy to see why many of these algorithms are optimization heuristics and metaheuristics. After all nature optimizes for survival. 
 
-From that point of view it's easy to see why many of these algorithms are optimization heuristics and metaheuristics. [Heuristics](https://stackoverflow.com/questions/2334225/what-is-the-difference-between-a-heuristic-and-an-algorithm), in case the term is not familiar to you, are algorithms that try to solve the problem faster by making some assumptions. As you can imagine, heuristics are often not optimal but are more useful in cases when getting the optimal results take way too long. [Metaheuristics](https://www.researchgate.net/post/What_are_the_differences_between_heuristics_and_metaheuristics) take this to the next level -- they are a heuristic that generates or finds heuristics.  
+[Heuristics](https://stackoverflow.com/questions/2334225/what-is-the-difference-between-a-heuristic-and-an-algorithm), in case the term is not familiar to you, are algorithms that try to solve the problem faster by making some assumptions. As a result, heuristics are often not optimal but are more useful in cases when getting the best results take way too long. [Metaheuristics](https://www.researchgate.net/post/What_are_the_differences_between_heuristics_and_metaheuristics) take this to the next level -- they are a heuristic that generates or finds heuristics.  
 
 ## Genetic algorithms
 
@@ -10,7 +10,7 @@ Genetic algorithms are metaheuristics that are based on the process of [natural 
 
 Natural selection, as a refresher, is a key mechanism in evolution. It is a natural process that causes populations (of organisms) to adapt to their environment over time. These populations have variations in traits. Individual organisms with more suitable traits have higher chances of survival in the environment. The next generations reproduced from these surviving organisms will inherit their traits, resulting eventualy in a population with these more suitable traits. 
 
-However if the entire population have the same traits, and the environment changes, this will result in extinction. Fortunately mutations that occur occasionally causes variations in traits and these allows traits that are more suited for the changed environment to survive and become the dominant trait.
+However if the entire population have the same traits, and the environment changes, the population will go extinction. Fortunately mutations that occur occasionally causes variations in traits and these allow organisms with traits that are more suited for the changed environment to survive and become dominant.
 
 A popularly used illustration is the [variation in color in the peppered moths in England](https://en.wikipedia.org/wiki/Peppered_moth_evolution). Before the early 1800s, the peppered moth in England were mostly of the white variety and its coloration helped it to hide from predatory birds as it blended well with light-colored lichens and English trees. However during the Industrial Revolution, light-colored lichens died due to pollution and many of the trees on which the moths rested became blackened by soot. This gave the dark colored moths an advantage in hiding from predators while the light colored moths were easily spotted. By the mid 1800s, the number of dark colored moths increased and by the end of the century, almost all peppered moths were of the dark variety. The balance was reversed by the effect of the Clean Air Act 1956, and the dark colored moths became rare again.
 
@@ -293,6 +293,7 @@ Let's move on.
 The fitness of the organism is the difference between the two images. 
 
 ```go
+// calculate the fitness of an organism
 func (o *Organism) calcFitness(target *image.RGBA) {
 	difference := diff(o.DNA, target)
 	if difference == 0 {
@@ -302,15 +303,16 @@ func (o *Organism) calcFitness(target *image.RGBA) {
 
 }
 
+// find the difference between 2 images
 func diff(a, b *image.RGBA) (d int64) {
 	d = 0
 	for i := 0; i < len(a.Pix); i++ {
 		d += int64(squareDifference(a.Pix[i], b.Pix[i]))
 	}
-
 	return int64(math.Sqrt(float64(d)))
 }
 
+// square the difference between 2 uint8s
 func squareDifference(x, y uint8) uint64 {
 	d := uint64(x) - uint64(y)
 	return d * d
@@ -491,3 +493,28 @@ I had a bit of fun with evolving Mona Lisa by drawing circles and also drawing t
 ![generation 29280](imgs/circles_29280.png)
 
 Have fun!
+
+## Displaying images on the terminal
+
+You might have noticed in my screenshots that I actually displayed images on the terminal. I could have created a web application to show this but I wanted to keep things much simpler so I thought to display the images directly on the terminal. While the terminal console is not where you'd normally expect images to be displayed, there are actually several ways of doing it.
+
+I chose one of the simplest. I happened to use the excellent [iTerm2](https://www.iterm2.com/), which is an excellent replacement for the default Terminal application in MacOS, and there is an [interesting hack in iTerm2 that allows images to be displayed](https://www.iterm2.com/documentation-images.html). 
+
+The trick is this -- if you can encode your image in Base64, you can use a special command to print out images to the terminal. Here's the Go code to do this, but you can also do this in any other language. There are several scripts in the documentation above that shows how this can be done using simple shell scripting.
+
+```go
+func printImage(img image.Image) {
+	var buf bytes.Buffer
+	png.Encode(&buf, img)
+	imgBase64Str := base64.StdEncoding.EncodeToString(buf.Bytes())
+	fmt.Printf("\x1b]1337;File=inline=1:%s\a\n", imgBase64Str)
+}
+```
+
+## References
+
+The example code has been inspired by the following work:
+
+* Daniel Schiffman's excellent book _The Nature of Code_ http://natureofcode.com -- it's a great and easy to understand read! I also took some of Daniel's code in Java and converted it to Go for the Shakespeare quote algorithm
+* Roger Johansson's excellent work in the post _Genetic Programming: Evolutiono of Mona Lisa_ https://rogerjohansson.blog/2008/12/07/genetic-programming-evolution-of-mona-lisa/ -- although I ended up using a completely different way of doing genetic algorithms, his original work gave me inspiration to use Mona Lisa and also to try doing it with triangles and circles
+
